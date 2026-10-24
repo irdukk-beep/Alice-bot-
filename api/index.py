@@ -44,26 +44,25 @@ def main():
     }
 
     payload = {
-        "model": "deepseek/deepseek-chat",
+        "model": "google/gemini-flash-1.5",  # Ультрабыстрая модель
         "messages": [{"role": "user", "content": user_command}],
         "max_tokens": 150,
     }
 
     response = requests.post(
-        OPENROUTER_URL, headers=headers, json=payload, timeout=2.5
+        OPENROUTER_URL, headers=headers, json=payload, timeout=2.8
     )
 
     if response.status_code == 200:
       data = response.json()
       ai_text = data["choices"][0]["message"]["content"]
     else:
-      # Выводим точный код и текст ошибки от OpenRouter в чат
       ai_text = (
           f"Ошибка API ({response.status_code}): {response.text[:150]}"
       )
 
   except requests.exceptions.Timeout:
-    ai_text = "Превышен таймаут ожидания нейросети."
+    ai_text = "Нейросеть думает слишком долго. Спросите покороче."
   except Exception as e:
     ai_text = f"Системная ошибка: {str(e)[:80]}"
 
