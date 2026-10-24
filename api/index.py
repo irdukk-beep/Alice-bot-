@@ -4,9 +4,12 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Ключ подтягивается автоматически из настроек Vercel
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Ключ подтягивается автоматически из настроек Vercel для Groq
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Список моделей по порядку приоритета (основная и запасная)
+MODELS_CHAIN = ["llama-3.1-8b-instant", "gemma2-9b-it"]
 
 
 @app.route("/api/index", methods=["POST"])
@@ -35,36 +38,31 @@ def main():
     })
 
   ai_text = "Извините, не удалось получить ответ."
-  try:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://yandex.ru",
-        "X-Title": "Alice Bot",
-    }
+  headers = {
+      "Authorization": f"Bearer {GROQ_API_KEY}",
+      "Content-Type": "application/json",
+  }
 
-    payload = {
-        "model": "google/gemini-flash-1.5",  # Ультрабыстрая модель
-        "messages": [{"role": "user", "content": user_command}],
-        "max_tokens": 150,
-    }
+  # Проходим по цепочке моделей: если первая не ответила вовремя, пробуем вторую
+  for model_name in MODELS_CHAIN:
+    try:
+      payload = {
+          "model": model_name,
+          "messages": [{"role": "user", "content": user_command}],
+          "max_tokens": 50,  # Короткий ответ для мгновенной генерации
+      }
 
-    response = requests.post(
-        OPENROUTER_URL, headers=headers, json=payload, timeout=2.8
-    )
-
-    if response.status_code == 200:
-      data = response.json()
-      ai_text = data["choices"][0]["message"]["content"]
-    else:
-      ai_text = (
-          f"Ошибка API ({response.status_code}): {response.text[:150]}"
+      # Выделяем на каждую попытку по 1.3 секунды
+      response = requests.post(
+          GROQ_URL, headers=headers, json=payload, timeout=1.3
       )
 
-  except requests.exceptions.Timeout:
-    ai_text = "Нейросеть думает слишком долго. Спросите покороче."
-  except Exception as e:
-    ai_text = f"Системная ошибка: {str(e)[:80]}"
+      if response.status_code == 200:
+        data = response.json()
+        ai_text = data["choices"][0]["message"]["content"]
+        break  # Успешно получили ответ — прерываем цикл
+    except Exception:
+      continue  # Если возникла ошибка или таймаут, цикл перейдет к следующей модели
 
   return jsonify({
       "version": req.get("version", "1.0"),
