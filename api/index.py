@@ -19,14 +19,13 @@ SYSTEM_PROMPT = (
     "Markdown-разметку, звездочки и решетки."
 )
 
-# Оптимизированная цепочка с короткими тайм-аутами (суммарно строго до 2.5 сек)
 PROVIDERS_CHAIN = [
     {
         "name": "Groq (Llama 8B)",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
         "model": "llama-3.1-8b-instant",
-        "timeout": 0.8,
+        "timeout": 1.0,
         "headers": {"Content-Type": "application/json"},
     },
     {
@@ -34,7 +33,7 @@ PROVIDERS_CHAIN = [
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
         "model": "llama-3.3-70b-versatile",
-        "timeout": 1.0,
+        "timeout": 1.2,
         "headers": {"Content-Type": "application/json"},
     },
     {
@@ -42,7 +41,7 @@ PROVIDERS_CHAIN = [
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "key": OPENROUTER_API_KEY,
         "model": "deepseek/deepseek-chat",
-        "timeout": 1.5,
+        "timeout": 2.2,
         "headers": {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://yandex.ru",
@@ -83,10 +82,12 @@ def main():
         })
 
     ai_text = None
+    error_logs = []
 
     for provider in PROVIDERS_CHAIN:
         key = provider["key"]
         if not key or not key.strip():
+            error_logs.append(f"[{provider['name']}]: Ключ не задан в Vercel")
             continue
 
         try:
@@ -114,13 +115,21 @@ def main():
                 raw_content = data["choices"][0]["message"]["content"]
                 ai_text = clean_text_for_alice(raw_content)
                 break
-        except Exception:
-            continue
+            else:
+                err_msg = response.text[:80].replace("\n", " ")
+                error_logs.append(
+                    f"[{provider['name']}] Код {response.status_code}: {err_msg}"
+                )
+        except requests.exceptions.Timeout:
+            error_logs.append(
+                f"[{provider['name']}]: Таймаут ({provider['timeout']}с)"
+            )
+        except Exception as e:
+            error_logs.append(f"[{provider['name']}]: Ошибка {str(e)[:60]}")
 
-    # Если абсолютно все провайдеры упали или не успели, возвращаем мягкую заглушку,
-    # чтобы Яндекс не выдавал ошибку тайм-аута, а озвучил понятный текст.
+    # Если ничего не ответило, выводим реальный лог ошибок в чат Алисы для проверки
     if not ai_text:
-        ai_text = "Извините, сервис перегружен, попробуйте еще раз."
+        ai_text = "Сбой всех нейросетей:\n" + "\n".join(error_logs)
 
     return jsonify({
         "version": req.get("version", "1.0"),
