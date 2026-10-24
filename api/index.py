@@ -4,8 +4,7 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Ключ автоматически подтягивается из переменных окружения Vercel
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "ВАШ_КЛЮЧ")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
@@ -13,7 +12,6 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 def main():
   req = request.get_json(silent=True)
 
-  # Обработка пустых запросов
   if not req or "request" not in req or "command" not in req["request"]:
     return jsonify({
         "version": "1.0",
@@ -25,7 +23,6 @@ def main():
 
   user_command = req["request"]["command"]
 
-  # Первое приветствие при старте
   if not user_command.strip():
     return jsonify({
         "version": req.get("version", "1.0"),
@@ -36,43 +33,38 @@ def main():
         },
     })
 
-  ai_text = "Извините, не удалось получить ответ."
+  ai_text = "Ошибка обработки."
   try:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://yandex.ru",
+        "X-Title": "Alice Bot",
     }
 
-    # Используем сверхбыструю модель для голосовых помощников
     payload = {
         "model": "meta-llama/llama-3.2-3b-instruct:free",
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Отвечай кратко, понятным языком, не более 2-3 предложений."
-                ),
-            },
-            {"role": "user", "content": user_command},
-        ],
+        "messages": [{"role": "user", "content": user_command}],
         "max_tokens": 150,
     }
 
-    # Короткий таймаут (2 секунды), чтобы уложиться в рамки Яндекса
     response = requests.post(
-        OPENROUTER_URL, headers=headers, json=payload, timeout=2.0
+        OPENROUTER_URL, headers=headers, json=payload, timeout=2.5
     )
 
     if response.status_code == 200:
       data = response.json()
       ai_text = data["choices"][0]["message"]["content"]
     else:
-      ai_text = "Нейросеть сейчас временно недоступна."
+      # Выводим точный код и текст ошибки от OpenRouter в чат для проверки
+      ai_text = (
+          f"Ошибка API ({response.status_code}): {response.text[:120]}"
+      )
 
   except requests.exceptions.Timeout:
-    ai_text = "Запрос обрабатывался слишком долго. Спросите покороче."
-  except Exception:
-    ai_text = "Произошла ошибка при обработке ответа."
+    ai_text = "Превышен таймаут ожидания нейросети."
+  except Exception as e:
+    ai_text = f"Системная ошибка: {str(e)[:50]}"
 
   return jsonify({
       "version": req.get("version", "1.0"),
