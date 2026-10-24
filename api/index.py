@@ -4,24 +4,24 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Ключи подтягиваются из настроек Vercel
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# Список провайдеров и моделей по порядку приоритета
 PROVIDERS_CHAIN = [
     {
         "name": "Groq (Llama 8B)",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
         "model": "llama-3.1-8b-instant",
+        "timeout": 1.2,
         "headers": {"Content-Type": "application/json"},
     },
     {
-        "name": "Groq (Mixtral)",
+        "name": "Groq (Llama 70B)",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
-        "model": "mixtral-8x7b-32768",
+        "model": "llama-3.3-70b-versatile",
+        "timeout": 1.5,
         "headers": {"Content-Type": "application/json"},
     },
     {
@@ -29,6 +29,7 @@ PROVIDERS_CHAIN = [
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "key": OPENROUTER_API_KEY,
         "model": "deepseek/deepseek-chat",
+        "timeout": 2.2,
         "headers": {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://yandex.ru",
@@ -66,7 +67,6 @@ def main():
   ai_text = None
   error_logs = []
 
-  # Проходим по цепочке провайдеров
   for provider in PROVIDERS_CHAIN:
     key = provider["key"]
     if not key or not key.strip():
@@ -80,31 +80,33 @@ def main():
       payload = {
           "model": provider["model"],
           "messages": [{"role": "user", "content": user_command}],
-          "max_tokens": 50,  # Короткий ответ для идеальной скорости
+          "max_tokens": 40,
       }
 
-      # На каждый запрос даем 1.3 секунды, чтобы уложиться в лимит Алисы
       response = requests.post(
-          provider["url"], headers=headers, json=payload, timeout=1.3
+          provider["url"],
+          headers=headers,
+          json=payload,
+          timeout=provider["timeout"],
       )
 
       if response.status_code == 200:
         data = response.json()
         ai_text = data["choices"][0]["message"]["content"]
-        break  # Ответ успешно получен — прерываем цикл
+        break
       else:
-        # Сохраняем код и текст ошибки для диагностики
         err_msg = response.text[:80].replace("\n", " ")
         error_logs.append(
             f"[{provider['name']}] Код {response.status_code}: {err_msg}"
         )
 
     except requests.exceptions.Timeout:
-      error_logs.append(f"[{provider['name']}]: Превышен таймаут (1.3с)")
+      error_logs.append(
+          f"[{provider['name']}]: Таймаут ({provider['timeout']}с)"
+      )
     except Exception as e:
       error_logs.append(f"[{provider['name']}]: Ошибка {str(e)[:60]}")
 
-  # Если ни один провайдер не ответил, выводим подробный список всех ошибок
   if not ai_text:
     ai_text = "Сбой всех нейросетей:\n" + "\n".join(error_logs)
 
