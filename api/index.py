@@ -4,7 +4,8 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "ВАШ_КЛЮЧ")
+# Ключ подтягивается автоматически из настроек Vercel
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
@@ -33,7 +34,7 @@ def main():
         },
     })
 
-  ai_text = "Ошибка обработки."
+  ai_text = "Извините, не удалось получить ответ."
   try:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -43,7 +44,7 @@ def main():
     }
 
     payload = {
-        "model": "meta-llama/llama-3.2-3b-instruct:free",
+        "model": "deepseek/deepseek-chat",
         "messages": [{"role": "user", "content": user_command}],
         "max_tokens": 150,
     }
@@ -56,15 +57,15 @@ def main():
       data = response.json()
       ai_text = data["choices"][0]["message"]["content"]
     else:
-      # Выводим точный код и текст ошибки от OpenRouter в чат для проверки
+      # Выводим точный код и текст ошибки от OpenRouter в чат
       ai_text = (
-          f"Ошибка API ({response.status_code}): {response.text[:120]}"
+          f"Ошибка API ({response.status_code}): {response.text[:150]}"
       )
 
   except requests.exceptions.Timeout:
     ai_text = "Превышен таймаут ожидания нейросети."
   except Exception as e:
-    ai_text = f"Системная ошибка: {str(e)[:50]}"
+    ai_text = f"Системная ошибка: {str(e)[:80]}"
 
   return jsonify({
       "version": req.get("version", "1.0"),
