@@ -4,10 +4,8 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Замените 'СЮДА_ВАШ_КЛЮЧ_SK_OR_...' на ваш реальный API-ключ OpenRouter
-OPENROUTER_API_KEY = os.environ.get(
-    "OPENROUTER_API_KEY", "СЮДА_ВАШ_КЛЮЧ_SK_OR_..."
-)
+# Ключ автоматически подтягивается из переменных окружения Vercel
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
