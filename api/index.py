@@ -7,7 +7,8 @@ app = Flask(__name__)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-MODELS_CHAIN = ["llama-3.1-8b-instant", "gemma2-9b-it"]
+# Заменили устаревшую модель gemma2-9b-it на актуальные модели Groq
+MODELS_CHAIN = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
 
 
 @app.route("/api/index", methods=["POST"])
