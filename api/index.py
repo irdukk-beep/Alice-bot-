@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from flask import Flask, jsonify, request
 
@@ -6,6 +7,15 @@ app = Flask(__name__)
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+
+# Улучшенный системный промпт: запрещаем ссылки и длинные списки
+SYSTEM_PROMPT = (
+    "Ты — голосовой помощник Яндекс Алисы. "
+    "Отвечай на том языке, на котором к тебе обратился пользователь. "
+    "Ответы должны быть краткими, живыми и понятными на слух. "
+    "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО: использовать ссылки, URL-адреса, списки с квадратными скобками, "
+    "Markdown-разметку, звездочки и решетки."
+)
 
 PROVIDERS_CHAIN = [
     {
@@ -37,6 +47,12 @@ PROVIDERS_CHAIN = [
         },
     },
 ]
+
+
+def clean_text_for_alice(text: str) -> str:
+  """Очищает текст от символов разметки и лишних элементов для озвучивания"""
+  text = re.sub(r"[\*#_`~\[\]\\]", "", text)
+  return text.strip()
 
 
 @app.route("/api/index", methods=["POST"])
@@ -79,8 +95,11 @@ def main():
 
       payload = {
           "model": provider["model"],
-          "messages": [{"role": "user", "content": user_command}],
-          "max_tokens": 40,
+          "messages": [
+              {"role": "system", "content": SYSTEM_PROMPT},
+              {"role": "user", "content": user_command},
+          ],
+          "max_tokens": 120,  # Увеличили лимит, чтобы текст не обрывался
       }
 
       response = requests.post(
@@ -92,7 +111,8 @@ def main():
 
       if response.status_code == 200:
         data = response.json()
-        ai_text = data["choices"][0]["message"]["content"]
+        raw_content = data["choices"][0]["message"]["content"]
+        ai_text = clean_text_for_alice(raw_content)
         break
       else:
         err_msg = response.text[:80].replace("\n", " ")
