@@ -8,7 +8,6 @@ app = Flask(__name__)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# Улучшенный системный промпт: запрещаем ссылки и длинные списки
 SYSTEM_PROMPT = (
     "Ты — голосовой помощник Яндекс Алисы. "
     "Отвечай на том языке, на котором к тебе обратился пользователь. "
@@ -22,16 +21,16 @@ PROVIDERS_CHAIN = [
         "name": "Groq (Llama 8B)",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
-        "model": "llama-3.1-8b-instant",
-        "timeout": 1.2,
+        "model": "llama3-8b-8192",
+        "timeout": 1.0,
         "headers": {"Content-Type": "application/json"},
     },
     {
         "name": "Groq (Llama 70B)",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "key": GROQ_API_KEY,
-        "model": "llama-3.3-70b-versatile",
-        "timeout": 1.5,
+        "model": "llama3-70b-8192",
+        "timeout": 1.2,
         "headers": {"Content-Type": "application/json"},
     },
     {
@@ -39,7 +38,7 @@ PROVIDERS_CHAIN = [
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "key": OPENROUTER_API_KEY,
         "model": "deepseek/deepseek-chat",
-        "timeout": 2.2,
+        "timeout": 2.6,
         "headers": {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://yandex.ru",
@@ -50,7 +49,6 @@ PROVIDERS_CHAIN = [
 
 
 def clean_text_for_alice(text: str) -> str:
-  """Очищает текст от символов разметки и лишних элементов для озвучивания"""
   text = re.sub(r"[\*#_`~\[\]\\]", "", text)
   return text.strip()
 
@@ -99,7 +97,7 @@ def main():
               {"role": "system", "content": SYSTEM_PROMPT},
               {"role": "user", "content": user_command},
           ],
-          "max_tokens": 120,  # Увеличили лимит, чтобы текст не обрывался
+          "max_tokens": 100,
       }
 
       response = requests.post(
